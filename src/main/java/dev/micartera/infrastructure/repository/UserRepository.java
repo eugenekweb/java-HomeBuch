@@ -1,4 +1,4 @@
-package dev.micartera.domain.repository;
+package dev.micartera.infrastructure.repository;
 
 
 import dev.micartera.domain.model.User;
@@ -12,5 +12,7 @@ public interface UserRepository {
     Optional<User> findByLogin(String login);
     boolean existsByLogin(String login);
     void delete(UUID id);
+
+     void clear();
 }
 

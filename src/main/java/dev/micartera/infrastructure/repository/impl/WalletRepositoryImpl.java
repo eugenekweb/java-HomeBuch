@@ -1,8 +1,8 @@
-package dev.micartera.infrastructure.repository;
+package dev.micartera.infrastructure.repository.impl;
 
 import dev.micartera.domain.model.Wallet;
-import dev.micartera.domain.repository.WalletRepository;
 import dev.micartera.infrastructure.config.ApplicationConfig;
+import dev.micartera.infrastructure.repository.WalletRepository;
 import dev.micartera.infrastructure.util.JsonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,11 +13,11 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.UUID;
 
-public class FileWalletRepository implements WalletRepository {
-    private static final Logger logger = LoggerFactory.getLogger(FileWalletRepository.class);
+public class WalletRepositoryImpl implements WalletRepository {
+    private static final Logger logger = LoggerFactory.getLogger(WalletRepositoryImpl.class);
     private final String walletsPath;
 
-    public FileWalletRepository() {
+    public WalletRepositoryImpl() {
         this.walletsPath = ApplicationConfig.getProperty("app.storage.path") + "/wallets/";
         new File(walletsPath).mkdirs();
     }
@@ -46,7 +46,7 @@ public class FileWalletRepository implements WalletRepository {
 
         try {
             String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
-            System.out.println(content);
+//            System.out.println(content);
             return Optional.of(JsonUtils.fromJson(content, Wallet.class));
         } catch (IOException e) {
             logger.error("Error reading wallet: {}", userId, e);

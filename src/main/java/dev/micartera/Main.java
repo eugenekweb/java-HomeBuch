@@ -1,6 +1,7 @@
 package dev.micartera;
 
 import dev.micartera.infrastructure.config.ApplicationConfig;
+import dev.micartera.infrastructure.config.LoggerConfig;
 import dev.micartera.presentation.cli.ConsoleUI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,13 +11,13 @@ public class Main {
 
     public static void main(String[] args) {
         try {
-            logger.info("Starting Personal Finance Management System");
             ApplicationConfig.initialize();
+            LoggerConfig.initialize();
             ConsoleUI ui = new ConsoleUI();
             ui.start();
         } catch (Exception e) {
-            logger.error("Application can't start", e);
-            System.err.println("Ошибка запуска приложения: " + e.getMessage());
+            logger.error("Критическая ошибка при запуске приложения", e);
+            System.err.println("Произошла ошибка при запуске приложения. Проверьте логи.");
         }
     }
 }

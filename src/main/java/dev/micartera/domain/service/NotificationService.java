@@ -4,8 +4,7 @@ import dev.micartera.domain.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class NotificationService {
     private static final Logger logger = LoggerFactory.getLogger(NotificationService.class);
@@ -42,5 +41,21 @@ public class NotificationService {
     private void addNotification(String message) {
         notifications.add(message);
         logger.info("Notification: {}", message);
+    }
+
+    private Map<UUID, Boolean> notificationSettings = new HashMap<>();
+
+    public void enableNotifications(UUID userId) {
+        notificationSettings.put(userId, true);
+        logger.info("Уведомления включены для пользователя: {}", userId);
+    }
+
+    public void disableNotifications(UUID userId) {
+        notificationSettings.put(userId, false);
+        logger.info("Уведомления отключены для пользователя: {}", userId);
+    }
+
+    public boolean isNotificationsEnabled(UUID userId) {
+        return notificationSettings.getOrDefault(userId, true);
     }
 }

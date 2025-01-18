@@ -1,9 +1,9 @@
-package dev.micartera.infrastructure.repository;
+package dev.micartera.infrastructure.repository.impl;
 
 
 import dev.micartera.domain.model.User;
-import dev.micartera.domain.repository.UserRepository;
 import dev.micartera.infrastructure.config.ApplicationConfig;
+import dev.micartera.infrastructure.repository.UserRepository;
 import dev.micartera.infrastructure.util.JsonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,14 +11,15 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Optional;
 import java.util.UUID;
 
-public class FileUserRepository implements UserRepository {
-    private static final Logger logger = LoggerFactory.getLogger(FileUserRepository.class);
+public class UserRepositoryImpl implements UserRepository {
+    private static final Logger logger = LoggerFactory.getLogger(UserRepositoryImpl.class);
     private final String usersPath;
 
-    public FileUserRepository() {
+    public UserRepositoryImpl() {
         this.usersPath = ApplicationConfig.getProperty("app.storage.path") + "/users/";
         new File(usersPath).mkdirs();
     }
@@ -85,6 +86,21 @@ public class FileUserRepository implements UserRepository {
         if (!file.delete() && file.exists()) {
             logger.error("Could not delete user file: {}", id);
             throw new RuntimeException("Could not delete user");
+        }
+    }
+
+    @Override
+    public void clear() {
+        try {
+            File usersDir = new File(usersPath);
+            for (File userFile : usersDir.listFiles()) {
+                String content = Files.readString(userFile.toPath());
+                User user = JsonUtils.fromJson(content, User.class);
+                // Перезаписываем файл заново чтобы обновить кэш
+                save(user);
+            }
+        } catch (IOException e) {
+            logger.error("Ошибка при очистке кэша пользователей", e);
         }
     }
 }

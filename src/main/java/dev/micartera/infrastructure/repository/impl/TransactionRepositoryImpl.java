@@ -1,9 +1,9 @@
-package dev.micartera.infrastructure.repository;
+package dev.micartera.infrastructure.repository.impl;
 
 import dev.micartera.domain.model.Transaction;
 import dev.micartera.domain.model.TransferFile;
-import dev.micartera.domain.repository.TransactionRepository;
 import dev.micartera.infrastructure.config.ApplicationConfig;
+import dev.micartera.infrastructure.repository.TransactionRepository;
 import dev.micartera.infrastructure.util.JsonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,12 +13,12 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class FileTransactionRepository implements TransactionRepository {
-    private static final Logger logger = LoggerFactory.getLogger(FileTransactionRepository.class);
+public class TransactionRepositoryImpl implements TransactionRepository {
+    private static final Logger logger = LoggerFactory.getLogger(TransactionRepositoryImpl.class);
     private final String transfersPath;
     private final String usersPath;
 
-    public FileTransactionRepository() {
+    public TransactionRepositoryImpl() {
         String storagePath = ApplicationConfig.getProperty("app.storage.path");
         this.transfersPath = storagePath + "/transfers/";
         this.usersPath = storagePath + "/users/";

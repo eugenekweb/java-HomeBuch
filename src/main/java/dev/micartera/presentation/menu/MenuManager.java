@@ -3,27 +3,20 @@ package dev.micartera.presentation.menu;
 import dev.micartera.domain.exception.AuthenticationException;
 import dev.micartera.domain.exception.ValidationException;
 import dev.micartera.domain.model.*;
-import dev.micartera.domain.repository.TransactionRepository;
-import dev.micartera.domain.repository.UserRepository;
-import dev.micartera.domain.repository.WalletRepository;
 import dev.micartera.domain.service.*;
 import dev.micartera.infrastructure.config.ApplicationConfig;
-import dev.micartera.infrastructure.repository.FileTransactionRepository;
-import dev.micartera.infrastructure.repository.FileUserRepository;
-import dev.micartera.infrastructure.repository.FileWalletRepository;
+import dev.micartera.infrastructure.repository.impl.UserRepositoryImpl;
+import dev.micartera.infrastructure.repository.impl.WalletRepositoryImpl;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.stream.Collectors;
 
-import dev.micartera.presentation.cli.ConsoleUI;
+import dev.micartera.presentation.service.SessionState;
+import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,33 +27,86 @@ public class MenuManager {
     private final Scanner scanner;
     private final InputValidator inputValidator;
     private final OutputFormatter formatter;
-    private UUID currentUserId;
-
-    // Добавляем сервисы
+    private final SessionState sessionState;
     private final AuthenticationService authenticationService;
     private final WalletService walletService;
     private final TransactionService transactionService;
     private final NotificationService notificationService;
+    private final ValidationService validationService;
 
     public MenuManager() {
-        this.menus = new HashMap<>();
+        UserRepositoryImpl userRepository = new UserRepositoryImpl();
+        WalletRepositoryImpl walletRepository = new WalletRepositoryImpl();
+
+        this.sessionState = new SessionState(walletRepository, userRepository);
         this.scanner = new Scanner(System.in);
         this.inputValidator = new InputValidator();
         this.formatter = new OutputFormatter();
-
-        // Инициализация репозиториев
-        UserRepository userRepository = new FileUserRepository();
-        WalletRepository walletRepository = new FileWalletRepository();
-        TransactionRepository transactionRepository = new FileTransactionRepository();
-        ValidationService validationService = new ValidationService();
-
-        // Инициализация сервисов
-        this.authenticationService = new AuthenticationService(userRepository, validationService);
-        this.walletService = new WalletService(walletRepository, validationService);
-        this.transactionService = new TransactionService(walletService);
+        this.menus = new HashMap<>();
         this.notificationService = new NotificationService();
+        this.validationService = new ValidationService();
+
+        this.authenticationService = new AuthenticationService(
+                userRepository,
+                validationService
+        );
+
+        this.walletService = new WalletService(
+                walletRepository,
+                validationService,
+                notificationService,
+                sessionState
+        );
+
+        this.transactionService = new TransactionService(walletService, sessionState);
 
         initializeMenus();
+    }
+
+//public class MenuManager {
+//    private static final Logger logger = LoggerFactory.getLogger(MenuManager.class);
+//    private final Map<String, Menu> menus;
+//    private Menu currentMenu;
+//    private final Scanner scanner;
+//    private final InputValidator inputValidator;
+//    private final OutputFormatter formatter;
+//    private UUID currentUserId;
+//
+//    // Добавляем сервисы
+//    private final AuthenticationService authenticationService;
+//    private final WalletService walletService;
+//    private final TransactionService transactionService;
+//    private final NotificationService notificationService;
+//
+//    public MenuManager() {
+//        this.menus = new HashMap<>();
+//        this.scanner = new Scanner(System.in);
+//        this.inputValidator = new InputValidator();
+//        this.formatter = new OutputFormatter();
+//
+//        // Инициализация репозиториев
+//        UserRepository userRepository = new FileUserRepository();
+//        WalletRepository walletRepository = new FileWalletRepository();
+//        TransactionRepository transactionRepository = new FileTransactionRepository();
+//        ValidationService validationService = new ValidationService();
+//
+//        // Инициализация сервисов
+//        this.authenticationService = new AuthenticationService(userRepository, validationService);
+//        this.walletService = new WalletService(walletRepository, validationService);
+//        this.transactionService = new TransactionService(walletService);
+//        this.notificationService = new NotificationService();
+//
+//        initializeMenus();
+//    }
+
+    private void switchMenu(String menuKey) {
+        Menu nextMenu = menus.get(menuKey);
+        if (nextMenu == null) {
+            logger.error("Меню '{}' не найдено", menuKey);
+            return;
+        }
+        currentMenu = nextMenu;
+        logger.debug("Переключение на меню: {}", menuKey);
     }
 
     private void initializeMenus() {
@@ -102,7 +148,7 @@ public class MenuManager {
         financeMenu.addOption("5", "Назад", () -> switchMenu("main_authorized"));
         menus.put("finance", financeMenu);
 
-        currentMenu = mainUnauthorized;
+        currentMenu = mainUnauthorized; // начальное меню
 
         initializeCategories();
         initializeTransfers();
@@ -142,7 +188,7 @@ public class MenuManager {
     private void initializeSettings() {
         Menu settingsMenu = new Menu("Настройки");
         settingsMenu.addOption("1", "Сменить пароль", this::handleChangePassword);
-        settingsMenu.addOption("2", "Настройка уведомлений", this::handleNotificationSettings);
+//        settingsMenu.addOption("2", "Настройка уведомлений", this::handleNotificationSettings);
         settingsMenu.addOption("3", "Назад", () -> switchMenu("main_authorized"));
         menus.put("settings", settingsMenu);
     }
@@ -185,15 +231,15 @@ public class MenuManager {
     // Обработчики команд
     private void handleAddIncome() {
         try {
-            if (currentUserId == null) {
-                throw new IllegalStateException("Пользователь не авторизован");
-            }
+//            if (currentUserId == null) {
+//                throw new IllegalStateException("Пользователь не авторизован");
+//            }
 
             BigDecimal amount = inputValidator.readAmount("Введите сумму дохода: ");
             Category category = selectCategory(Category.CategoryType.INCOME);
             String description = inputValidator.readString("Введите описание (опционально): ");
 
-            walletService.addIncome(currentUserId, amount, category, description);
+            walletService.addIncome(amount, category, description);
             notificationService.notifyTransaction(new Transaction(
                     UUID.randomUUID(),
                     Transaction.TransactionType.INCOME,
@@ -219,25 +265,28 @@ public class MenuManager {
             Category category = selectCategory(Category.CategoryType.EXPENSE);
             String description = inputValidator.readString("Введите описание (опционально): ");
 
-            // TODO: Вызов сервиса для добавления расхода
+            User currentUser = sessionState.getCurrentUser();
+            walletService.addExpense(amount, category, description);
+
             System.out.println(formatter.formatSuccess("Расход успешно добавлен"));
         } catch (Exception e) {
             System.out.println(formatter.formatError(e.getMessage()));
+            logger.error("Ошибка при добавлении расхода", e);
         }
     }
 
     private Category selectCategory(Category.CategoryType type) {
-        if (currentUserId == null) {
-            throw new IllegalStateException("Пользователь не авторизован");
-        }
+//        if (currentUserId == null) {
+//            throw new IllegalStateException("Пользователь не авторизован");
+//        }
+//
+//        // Получаем кошелек пользователя
+//        Optional<Wallet> walletOpt = walletService.findWalletByUserId(currentUserId);
+//        if (walletOpt.isEmpty()) {
+//            throw new IllegalStateException("Кошелек пользователя не найден");
+//        }
 
-        // Получаем кошелек пользователя
-        Optional<Wallet> walletOpt = walletService.findWalletByUserId(currentUserId);
-        if (walletOpt.isEmpty()) {
-            throw new IllegalStateException("Кошелек пользователя не найден");
-        }
-
-        Wallet wallet = walletOpt.get();
+        Wallet wallet = sessionState.getCurrentWallet();
         List<Category> categories = wallet.getCategories().stream()
                 .filter(c -> c.getType() == type)
                 .toList();
@@ -282,17 +331,13 @@ public class MenuManager {
         while (true) {
             try {
                 String name = inputValidator.readString("Введите название категории: ");
-                walletService.addCategory(currentUserId, name, type);
+                walletService.addCategory(name, type);
 
-                // Получаем обновленный список категорий и находим только что созданную
-                Optional<Wallet> walletOpt = walletService.findWalletByUserId(currentUserId);
-                if (walletOpt.isPresent()) {
-                    return walletOpt.get().getCategories().stream()
+                    return sessionState.getCurrentWallet().getCategories().stream()
                             .filter(c -> c.getName().equals(name) && c.getType() == type)
                             .findFirst()
                             .orElseThrow(() -> new IllegalStateException("Ошибка при создании категории"));
-                }
-                throw new IllegalStateException("Ошибка при получении кошелька");
+//                throw new IllegalStateException("Ошибка при получении кошелька");
             } catch (Exception e) {
                 System.out.println(formatter.formatError("Ошибка при создании категории: " + e.getMessage()));
                 System.out.println("Попробовать снова? (да/нет)");
@@ -304,37 +349,33 @@ public class MenuManager {
     }
 
     private void handleLogout() {
-        currentUserId = null;
-        switchMenu("main_unauthorized");
-    }
-
-    // ... остальные обработчики команд будут добавлены позже
-
-    private void switchMenu(String menuKey) {
-        Menu menu = menus.get(menuKey);
-        if (menu != null) {
-            currentMenu = menu;
+        try {
+            sessionState.saveAndClose();
+            switchMenu("auth");
+            System.out.println(formatter.formatSuccess("Вы успешно вышли из системы"));
+        } catch (Exception e) {
+            logger.error("Ошибка при выходе", e);
+            System.out.println(formatter.formatError("Ошибка при выходе из системы"));
         }
     }
 
+
     private void handleLogin() {
         try {
-            System.out.print("Введите логин: ");
-            String login = scanner.nextLine().trim();
-            System.out.print("Введите пароль: ");
-
-            String password = scanner.nextLine().trim();
+            String login = inputValidator.readString("Введите логин: ");
+            String password = inputValidator.readString("Введите пароль: ");
 
             Optional<User> user = authenticationService.authenticate(login, password);
             if (user.isPresent()) {
-                currentUserId = user.get().getId();
-                System.out.println(formatter.formatSuccess("Вход выполнен успешно!"));
+                sessionState.setCurrentSession(user.get().getId());
                 switchMenu("main_authorized");
+                System.out.println(formatter.formatSuccess("Добро пожаловать, " + login + "!"));
             } else {
-                System.out.println(formatter.formatError("Неверный логин или пароль"));
+                System.out.println(formatter.formatError("Неверный пароль"));
             }
         } catch (Exception e) {
-            System.out.println(formatter.formatError(e.getMessage()));
+            logger.error("Ошибка при входе", e);
+            System.out.println(formatter.formatError("Ошибка авторизации. " + e.getMessage()));
         }
     }
 
@@ -357,12 +398,11 @@ public class MenuManager {
 
     private void handleViewCategories() {
         try {
-            if (currentUserId == null) {
-                throw new IllegalStateException("Пользователь не авторизован");
-            }
+//            if (currentUserId == null) {
+//                throw new IllegalStateException("Пользователь не авторизован");
+//            }
 
-            // TODO: Получить категории из сервиса
-            List<Category> categories = new ArrayList<>(); // Временная заглушка
+            List<Category> categories = sessionState.getCurrentWallet().getCategories();
 
             if (categories.isEmpty()) {
                 System.out.println("У вас пока нет категорий");
@@ -393,7 +433,7 @@ public class MenuManager {
             };
 
             String name = inputValidator.readString("Введите название категории: ");
-            walletService.addCategory(currentUserId, name, type);
+            walletService.addCategory(name, type);
             System.out.println(formatter.formatSuccess("Категория успешно создана"));
         } catch (Exception e) {
             logger.error("Ошибка при создании категории", e);
@@ -404,13 +444,12 @@ public class MenuManager {
 
     private void handleDeleteCategory() {
         try {
-            Optional<Wallet> walletOpt = walletService.findWalletByUserId(currentUserId);
-            if (walletOpt.isEmpty()) {
+            if (sessionState.getCurrentWallet() == null) {
                 System.out.println(formatter.formatError("Кошелек не найден"));
                 return;
             }
 
-            List<Category> categories = walletOpt.get().getCategories();
+            List<Category> categories = sessionState.getCurrentWallet().getCategories();
             if (categories.isEmpty()) {
                 System.out.println("Нет доступных категорий для удаления");
                 return;
@@ -428,7 +467,7 @@ public class MenuManager {
             }
 
             Category categoryToDelete = categories.get(choice);
-            walletService.deleteCategory(currentUserId, categoryToDelete.getId());
+            walletService.deleteCategory(categoryToDelete.getId());
             System.out.println(formatter.formatSuccess("Категория успешно удалена"));
 
         } catch (Exception e) {
@@ -439,87 +478,80 @@ public class MenuManager {
 
     private void handleSetBudget() {
         try {
-            Optional<Wallet> walletOpt = walletService.findWalletByUserId(currentUserId);
-            if (walletOpt.isEmpty()) {
-                System.out.println(formatter.formatError("Кошелек не найден"));
-                return;
-            }
-
-            List<Category> expenseCategories = walletOpt.get().getCategories().stream()
+            List<Category> expenseCategories = sessionState.getCurrentWallet().getCategories().stream()
                     .filter(c -> c.getType() == Category.CategoryType.EXPENSE)
-                    .collect(Collectors.toList());
+                    .toList();
 
             if (expenseCategories.isEmpty()) {
-                System.out.println("Нет доступных категорий расходов");
+                System.out.println("У вас нет категорий расходов");
                 return;
             }
 
-            System.out.println("\nКатегории расходов:");
+            System.out.println("Категории расходов:");
             for (int i = 0; i < expenseCategories.size(); i++) {
-                Budget budget = walletOpt.get().getBudgets().get(expenseCategories.get(i).getId());
-                String limit = budget != null ? formatter.formatAmount(budget.getLimit()) : "не установлен";
-                System.out.printf("%d. %s (текущий лимит: %s)%n",
-                        i + 1,
-                        expenseCategories.get(i).getName(),
-                        limit);
+                System.out.printf("%d. %s%n", i + 1, expenseCategories.get(i).getName());
             }
 
-            int choice = Integer.parseInt(inputValidator.readString("Выберите номер категории: ")) - 1;
-            if (choice < 0 || choice >= expenseCategories.size()) {
+            int index = Integer.parseInt(inputValidator.readString("Выберите номер категории: ")) - 1;
+            if (index < 0 || index >= expenseCategories.size()) {
                 throw new ValidationException("Неверный номер категории");
             }
 
             BigDecimal limit = inputValidator.readAmount("Введите лимит бюджета: ");
-            walletService.setBudget(currentUserId, expenseCategories.get(choice).getId(), limit);
+            walletService.setBudget(expenseCategories.get(index).getId(), limit);
             System.out.println(formatter.formatSuccess("Бюджет успешно установлен"));
-
         } catch (Exception e) {
             logger.error("Ошибка при установке бюджета", e);
-            System.out.println(formatter.formatError("Не удалось установить бюджет: " + e.getMessage()));
+            System.out.println(formatter.formatError("Не удалось установить бюджет"));
         }
     }
 
     private void handleViewBalance() {
         try {
-            if (currentUserId == null) {
-                throw new IllegalStateException("Пользователь не авторизован");
-            }
+            Wallet wallet = sessionState.getCurrentWallet();
+            System.out.println("Текущий баланс: " + formatter.formatAmount(wallet.getBalance()));
 
-            // TODO: Получить данные из сервиса
-            BigDecimal balance = BigDecimal.ZERO; // Временная заглушка
-            Map<Category, BigDecimal> categoryBalances = new HashMap<>(); // Временная заглушка
+            // Отображение бюджетов по категориям
+            Map<UUID, Budget> budgets = wallet.getBudgets();
+            if (!budgets.isEmpty()) {
+                System.out.println("\nБюджеты по категориям:");
+                for (Map.Entry<UUID, Budget> entry : budgets.entrySet()) {
+                    Category category = wallet.getCategories().stream()
+                            .filter(c -> c.getId().equals(entry.getKey()))
+                            .findFirst()
+                            .orElseThrow();
+                    Budget budget = entry.getValue();
 
-            System.out.println("\nТекущий баланс: " + formatter.formatAmount(balance));
-
-            if (!categoryBalances.isEmpty()) {
-                System.out.println("\nБаланс по категориям:");
-                categoryBalances.forEach((category, amount) ->
-                        System.out.printf("%s: %s%n",
+                    if (budget.isEnabled()) {
+                        System.out.printf("%s: %s из %s (%.1f%%)%n",
                                 category.getName(),
-                                formatter.formatAmount(amount)));
+                                formatter.formatAmount(budget.getSpent()),
+                                formatter.formatAmount(budget.getLimit()),
+                                budget.getSpent().divide(budget.getLimit(), 3, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
+                        );
+                    }
+                }
             }
         } catch (Exception e) {
-            System.out.println(formatter.formatError(e.getMessage()));
+            logger.error("Ошибка при отображении баланса", e);
+            System.out.println(formatter.formatError("Не удалось отобразить баланс"));
         }
     }
 
     private void handleCurrentPeriodReport() {
         try {
-            if (currentUserId == null) {
-                throw new IllegalStateException("Пользователь не авторизован");
-            }
+//            if (currentUserId == null) {
+//                throw new IllegalStateException("Пользователь не авторизован");
+//            }
 
-            LocalDateTime now = LocalDateTime.now();
-            LocalDateTime startOfMonth = now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+            int defaultPeriodMonths = Integer.parseInt(ApplicationConfig.getProperty("app.default-period.months"));
+            LocalDateTime endDate = LocalDateTime.now();
+            LocalDateTime startDate = endDate.minusMonths(defaultPeriodMonths);
 
-            List<Transaction> transactions = transactionService.getTransactionHistory(
-                    currentUserId,
-                    startOfMonth,
-                    now
-            );
+            List<Transaction> transactions = transactionService.getTransactionHistory(startDate, endDate);
+            showTransactionReport(transactions, startDate, endDate);
 //            List<Transaction> transactions = new ArrayList<>(); // Временная заглушка
 
-            showTransactionReport(transactions, startOfMonth, now);
         } catch (Exception e) {
             logger.error("Ошибка при формировании отчета за текущий период", e);
             System.out.println(formatter.formatError("Не удалось сформировать отчет: " + e.getMessage()));
@@ -528,24 +560,19 @@ public class MenuManager {
 
     private void handleCustomPeriodReport() {
         try {
-            if (currentUserId == null) {
-                throw new IllegalStateException("Пользователь не авторизован");
-            }
+//            if (currentUserId == null) {
+//                throw new IllegalStateException("Пользователь не авторизован");
+//            }
 
-            LocalDateTime startDate = inputValidator.readDate("Введите начальную дату (ДД.ММ.ГГГГ): ");
-            LocalDateTime endDate = inputValidator.readDate("Введите конечную дату (ДД.ММ.ГГГГ): ");
+            LocalDateTime startDate = inputValidator.readDate("Введите начальную дату (dd.MM.yyyy): ");
+            LocalDateTime endDate = inputValidator.readDate("Введите конечную дату (dd.MM.yyyy): ");
 
             if (endDate.isBefore(startDate)) {
-                throw new IllegalArgumentException("Конечная дата не может быть раньше начальной");
+                System.out.println(formatter.formatError("Конечная дата не может быть раньше начальной"));
+                return;
             }
 
-            List<Transaction> transactions = transactionService.getTransactionHistory(
-                    currentUserId,
-                    startDate,
-                    endDate
-            );
-//            List<Transaction> transactions = new ArrayList<>(); // Временная заглушка
-
+            List<Transaction> transactions = transactionService.getTransactionHistory(startDate, endDate);
             showTransactionReport(transactions, startDate, endDate);
         } catch (Exception e) {
             logger.error("Ошибка при формировании отчета за выбранный период", e);
@@ -555,13 +582,13 @@ public class MenuManager {
 
     private void showTransactionReport(List<Transaction> transactions, LocalDateTime from, LocalDateTime to) {
         if (transactions.isEmpty()) {
-            System.out.println("Транзакции за указанный период отсутствуют");
+            System.out.println("Нет транзакций за указанный период");
             return;
         }
 
-        System.out.println("\nОтчет по транзакциям за период: " +
-                from.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")) + " - " +
-                to.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")));
+        DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern(ApplicationConfig.getProperty("app.date-format"));
+        System.out.printf("Отчет по транзакциям за период: %s - %s%n",
+                from.format(dateFormat), to.format(dateFormat));
 
         BigDecimal totalIncome = BigDecimal.ZERO;
         BigDecimal totalExpense = BigDecimal.ZERO;
@@ -580,8 +607,7 @@ public class MenuManager {
         System.out.println("\nИтого:");
         System.out.println("Доходы: " + formatter.formatAmount(totalIncome));
         System.out.println("Расходы: " + formatter.formatAmount(totalExpense));
-        System.out.println("Баланс за период: " +
-                formatter.formatAmount(totalIncome.subtract(totalExpense)));
+        System.out.println("Баланс: " + formatter.formatAmount(totalIncome.subtract(totalExpense)));
     }
 
     private void handleNewTransfer() {
@@ -590,98 +616,98 @@ public class MenuManager {
 
     private void handleChangePassword() {
         try {
-            if (currentUserId == null) {
-                throw new IllegalStateException("Пользователь не авторизован");
+            User currentUser = sessionState.getCurrentUser();
+            String currentPassword = inputValidator.readString("Введите текущий пароль: ");
+            String newPassword = inputValidator.readString("Введите новый пароль: ");
+
+            if (!authenticationService.authenticate(currentUser.getLogin(), currentPassword).isPresent()) {
+                throw new AuthenticationException("Неверный текущий пароль");
             }
 
-            System.out.print("Введите текущий пароль: ");
-            String currentPassword = scanner.nextLine().trim();
-
-            System.out.print("Введите новый пароль: ");
-            String newPassword = scanner.nextLine().trim();
-
-            // TODO: Вызов сервиса для смены пароля
+            if (!validationService.validatePassword(newPassword)) {
+                throw new ValidationException("Новый пароль не соответствует требованиям безопасности");
+            }
+            authenticationService.changePassword(currentUser.getId(), newPassword);
             System.out.println(formatter.formatSuccess("Пароль успешно изменен"));
+            handleLogout();
         } catch (Exception e) {
-            System.out.println(formatter.formatError(e.getMessage()));
+            logger.error("Ошибка при смене пароля", e);
+            System.out.println(formatter.formatError("Не удалось изменить пароль"));
         }
     }
 
     private void handleNotificationSettings() {
         try {
-            if (currentUserId == null) {
-                throw new IllegalStateException("Пользователь не авторизован");
-            }
-
-            System.out.println("\nНастройки уведомлений:");
+            System.out.println("Настройки уведомлений:");
             System.out.println("1. Включить все уведомления");
             System.out.println("2. Отключить все уведомления");
-            System.out.println("3. Назад");
 
-            String choice = scanner.nextLine().trim();
+            String choice = inputValidator.readString("Ваш выбор: ");
+
             switch (choice) {
-                case "1":
-                    // TODO: Вызов сервиса для включения уведомлений
+                case "1" -> {
+                    notificationService.enableNotifications(sessionState.getCurrentUser().getId());
                     System.out.println(formatter.formatSuccess("Уведомления включены"));
-                    break;
-                case "2":
-                    // TODO: Вызов сервиса для отключения уведомлений
+                }
+                case "2" -> {
+                    notificationService.disableNotifications(sessionState.getCurrentUser().getId());
                     System.out.println(formatter.formatSuccess("Уведомления отключены"));
-                    break;
-                case "3":
-                    break;
-                default:
-                    System.out.println("Неверный выбор");
+                }
+                default -> System.out.println(formatter.formatError("Неверный выбор"));
             }
         } catch (Exception e) {
-            System.out.println(formatter.formatError(e.getMessage()));
+            logger.error("Ошибка при настройке уведомлений", e);
+            System.out.println(formatter.formatError("Не удалось изменить настройки уведомлений"));
+        }
+    }
+
+//    public void restoreSessionState() {
+//        try {
+//            Properties props = new Properties();
+//            File sessionFile = new File("./storage/session.properties");
+//            if (sessionFile.exists()) {
+//                props.load(new FileInputStream(sessionFile));
+//                String userId = props.getProperty("currentUserId");
+//                if (userId != null) {
+//                    sessionState.setCurrentSession(UUID.fromString(userId));
+//                    currentMenu = menus.get("main");
+//                } else {
+//                    currentMenu = menus.get("auth");
+//                }
+//            } else {
+//                currentMenu = menus.get("auth");
+//            }
+//        } catch (Exception e) {
+//            logger.error("Ошибка восстановления сессии", e);
+//            currentMenu = menus.get("auth");
+//        }
+//    }
+
+    public void emergencyShutdown() {
+        try {
+            User currentUser = sessionState.getCurrentUser();
+            if (currentUser != null) {
+                sessionState.saveAndClose();
+                logger.info("Состояние сессии сохранено при аварийном завершении");
+                saveSessionState();
+                scanner.close();
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка при аварийном сохранении состояния", e);
         }
     }
 
     private void saveSessionState() {
-        if (currentUserId != null) {
-            try {
-                Properties sessionProps = new Properties();
-                sessionProps.setProperty("userId", currentUserId.toString());
-                sessionProps.setProperty("lastActivity", LocalDateTime.now().toString());
-
-                File sessionFile = new File(ApplicationConfig.getProperty("app.storage.path") + "/session.properties");
-                try (FileOutputStream out = new FileOutputStream(sessionFile)) {
-                    sessionProps.store(out, "Session state");
-                }
-            } catch (IOException e) {
-                logger.error("Error saving session state", e);
+        try {
+            Properties props = new Properties();
+            User currentUser = sessionState.getCurrentUser();
+            if (currentUser != null) {
+                props.setProperty("currentUserId", currentUser.getId().toString());
             }
+            props.store(new FileOutputStream("./storage/session.properties"), null);
+        } catch (Exception e) {
+            logger.error("Ошибка сохранения состояния сессии", e);
         }
-    }
-
-    private void restoreSessionState() {
-        File sessionFile = new File(ApplicationConfig.getProperty("app.storage.path") + "/session.properties");
-        if (sessionFile.exists()) {
-            try {
-                Properties sessionProps = new Properties();
-                try (FileInputStream in = new FileInputStream(sessionFile)) {
-                    sessionProps.load(in);
-                    String userId = sessionProps.getProperty("userId");
-                    String lastActivity = sessionProps.getProperty("lastActivity");
-
-                    if (userId != null && lastActivity != null) {
-                        LocalDateTime lastActivityTime = LocalDateTime.parse(lastActivity);
-                        if (ChronoUnit.MINUTES.between(lastActivityTime, LocalDateTime.now()) < 30) {
-                            currentUserId = UUID.fromString(userId);
-                            switchMenu("main_authorized");
-                            return;
-                        }
-                    }
-                }
-                // Если сессия устарела или невалидна, удаляем файл
-                sessionFile.delete();
-            } catch (Exception e) {
-                logger.error("Error restoring session state", e);
-                sessionFile.delete();
-            }
-        }
-        switchMenu("main_unauthorized");
     }
 
 }
@@ -708,22 +734,10 @@ class Menu {
     }
 }
 
+@Data
 class MenuOption {
     private final String description;
     private final Runnable action;
-
-    public MenuOption(String description, Runnable action) {
-        this.description = description;
-        this.action = action;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public Runnable getAction() {
-        return action;
-    }
 }
 
 class InputValidator {
@@ -764,6 +778,9 @@ class InputValidator {
 }
 
 class OutputFormatter {
+    private static final DateTimeFormatter dateFormatter =
+            DateTimeFormatter.ofPattern(ApplicationConfig.getProperty("app.date-format"));
+
     public String formatSuccess(String message) {
         return "✓ " + message;
     }
@@ -780,18 +797,15 @@ class OutputFormatter {
         StringBuilder sb = new StringBuilder();
 
         // Форматируем дату
-        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
+//        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
         sb.append(transaction.getCreated().format(dateFormatter))
                 .append(" | ");
 
         // Добавляем тип транзакции и сумму
         switch (transaction.getType()) {
-            case INCOME -> sb.append("Доход: +");
-            case EXPENSE -> sb.append("Расход: -");
-            case TRANSFER -> {
-                // TODO: Добавить информацию об отправителе/получателе после реализации переводов
-                sb.append("Перевод: ");
-            }
+            case INCOME -> sb.append("➕");
+            case EXPENSE -> sb.append("➖");
+            case TRANSFER -> sb.append("↔"); // TODO: будет реализовано позже при добавлении переводов
         }
 
         sb.append(formatAmount(transaction.getAmount()))
@@ -815,4 +829,5 @@ class OutputFormatter {
 
         return sb.toString();
     }
+
 }

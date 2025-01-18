@@ -1,10 +1,14 @@
 package dev.micartera.domain.service;
 
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.math.BigDecimal;
 import java.util.regex.Pattern;
 
 public class ValidationService {
+    private static final Logger logger = LoggerFactory.getLogger(ValidationService.class);
     private final Pattern loginPattern;
     private final Pattern passwordPattern;
     private final int minLoginLength;

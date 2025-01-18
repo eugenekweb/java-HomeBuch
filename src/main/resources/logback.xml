@@ -1,0 +1,16 @@
+<configuration>
+    <!-- Установка уровня логирования для компонентов Logback -->
+    <logger name="ch.qos.logback" level="WARN"/>
+
+    <!-- Настройка аппендера для вывода логов в консоль -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Настройка корневого логгера -->
+    <root level="DEBUG">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

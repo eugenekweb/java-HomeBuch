@@ -5,7 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ConsoleUI {
-    private static final Logger logger = LoggerFactory.getLogger(ConsoleUI.class); // TODO: логироание
+    private static final Logger logger = LoggerFactory.getLogger(ConsoleUI.class);
     private final MenuManager menuManager;
 
     public ConsoleUI() {
@@ -13,17 +13,16 @@ public class ConsoleUI {
     }
 
     public void start() {
-        logger.info("Starting console UI");
-        System.out.println("Добро пожаловать в систему управления личными финансами!");
-
-        while (true) {
-            try {
+        logger.info("Запуск приложения");
+        try {
+//            menuManager.restoreSessionState(); // механизм восстановления сессии
+            while (true) {
                 menuManager.displayCurrentMenu();
                 menuManager.handleInput();
-            } catch (Exception e) {
-                logger.error("Error in console UI", e);
-                System.out.println("Произошла ошибка: " + e.getMessage());
             }
+        } catch (Exception e) {
+            logger.error("Неожиданная ошибка в работе приложения", e);
+            menuManager.emergencyShutdown();
         }
     }
 }
