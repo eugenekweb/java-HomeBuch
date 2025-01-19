@@ -52,7 +52,7 @@ public class WalletService {
 
         Transaction transaction = createTransaction(amount, category, description, Transaction.TransactionType.EXPENSE);
         wallet.setBalance(wallet.getBalance().subtract(amount));
-        wallet.getActiveTransactions().add(transaction);
+        wallet.getTransactionHistory().add(transaction);
 
         updateBudget(wallet, category, amount);
         checkLowBalance(wallet);
@@ -129,6 +129,15 @@ public class WalletService {
                 notificationService.isNotificationsEnabled(wallet.getUserId())) {
             notificationService.notifyLowBalance(wallet.getBalance(), LOW_BALANCE_THRESHOLD);
         }
+    }
+
+    public BigDecimal getCategoryBalance(Category category) {
+        Wallet wallet = sessionState.getCurrentWallet();
+        BigDecimal balance = wallet.getTransactionHistory().stream()
+                .filter(t -> t.getCategory().equals(category))
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return balance;
     }
 
 

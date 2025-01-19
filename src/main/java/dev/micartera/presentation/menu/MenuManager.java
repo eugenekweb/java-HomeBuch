@@ -8,7 +8,9 @@ import dev.micartera.infrastructure.config.ApplicationConfig;
 import dev.micartera.infrastructure.repository.impl.UserRepositoryImpl;
 import dev.micartera.infrastructure.repository.impl.WalletRepositoryImpl;
 
+import java.io.Console;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -16,6 +18,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 import dev.micartera.presentation.service.SessionState;
+import dev.micartera.presentation.util.Color;
+import dev.micartera.presentation.util.ColorPrinter;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,42 +67,6 @@ public class MenuManager {
         initializeMenus();
     }
 
-//public class MenuManager {
-//    private static final Logger logger = LoggerFactory.getLogger(MenuManager.class);
-//    private final Map<String, Menu> menus;
-//    private Menu currentMenu;
-//    private final Scanner scanner;
-//    private final InputValidator inputValidator;
-//    private final OutputFormatter formatter;
-//    private UUID currentUserId;
-//
-//    // Добавляем сервисы
-//    private final AuthenticationService authenticationService;
-//    private final WalletService walletService;
-//    private final TransactionService transactionService;
-//    private final NotificationService notificationService;
-//
-//    public MenuManager() {
-//        this.menus = new HashMap<>();
-//        this.scanner = new Scanner(System.in);
-//        this.inputValidator = new InputValidator();
-//        this.formatter = new OutputFormatter();
-//
-//        // Инициализация репозиториев
-//        UserRepository userRepository = new FileUserRepository();
-//        WalletRepository walletRepository = new FileWalletRepository();
-//        TransactionRepository transactionRepository = new FileTransactionRepository();
-//        ValidationService validationService = new ValidationService();
-//
-//        // Инициализация сервисов
-//        this.authenticationService = new AuthenticationService(userRepository, validationService);
-//        this.walletService = new WalletService(walletRepository, validationService);
-//        this.transactionService = new TransactionService(walletService);
-//        this.notificationService = new NotificationService();
-//
-//        initializeMenus();
-//    }
-
     private void switchMenu(String menuKey) {
         Menu nextMenu = menus.get(menuKey);
         if (nextMenu == null) {
@@ -131,6 +99,8 @@ public class MenuManager {
 
         // Главное меню (авторизованный пользователь)
         Menu mainAuthorized = new Menu("Главное меню");
+        // TODO: delete TEST_BUTTON after tests
+        mainAuthorized.addOption("0", ColorPrinter.getColoredString("TEST_BUTTON", Color.PURPLE), this::handleViewCategories);
         mainAuthorized.addOption("1", "Управление финансами", () -> switchMenu("finance"));
         mainAuthorized.addOption("2", "Переводы", () -> switchMenu("transfers"));
         mainAuthorized.addOption("3", "Статистика и отчеты", () -> switchMenu("reports"));
@@ -188,9 +158,13 @@ public class MenuManager {
     private void initializeSettings() {
         Menu settingsMenu = new Menu("Настройки");
         settingsMenu.addOption("1", "Сменить пароль", this::handleChangePassword);
-//        settingsMenu.addOption("2", "Настройка уведомлений", this::handleNotificationSettings);
+        settingsMenu.addOption("2", "Настройка уведомлений", this::handleNotificationSettings);
         settingsMenu.addOption("3", "Назад", () -> switchMenu("main_authorized"));
         menus.put("settings", settingsMenu);
+    }
+
+    private void menuItemIsUnderReconstruction() {
+        ColorPrinter.println("####    Этот пункт меню еще в доработке.", Color.RED);
     }
 
     public void displayCurrentMenu() {
@@ -333,10 +307,10 @@ public class MenuManager {
                 String name = inputValidator.readString("Введите название категории: ");
                 walletService.addCategory(name, type);
 
-                    return sessionState.getCurrentWallet().getCategories().stream()
-                            .filter(c -> c.getName().equals(name) && c.getType() == type)
-                            .findFirst()
-                            .orElseThrow(() -> new IllegalStateException("Ошибка при создании категории"));
+                return sessionState.getCurrentWallet().getCategories().stream()
+                        .filter(c -> c.getName().equals(name) && c.getType() == type)
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException("Ошибка при создании категории"));
 //                throw new IllegalStateException("Ошибка при получении кошелька");
             } catch (Exception e) {
                 System.out.println(formatter.formatError("Ошибка при создании категории: " + e.getMessage()));
@@ -363,7 +337,7 @@ public class MenuManager {
     private void handleLogin() {
         try {
             String login = inputValidator.readString("Введите логин: ");
-            String password = inputValidator.readString("Введите пароль: ");
+            String password = inputValidator.readMaskedPassword("Введите пароль: ");
 
             Optional<User> user = authenticationService.authenticate(login, password);
             if (user.isPresent()) {
@@ -409,11 +383,14 @@ public class MenuManager {
                 return;
             }
 
-            System.out.println("\nВаши категории:");
+            System.out.println(formatter.formatCaption("Ваши категории:", Color.BLACK, Color.BG_YELLOW));
             categories.forEach(category ->
-                    System.out.printf("%s (%s)%n",
-                            category.getName(),
-                            category.getType()));
+            {
+                System.out.printf("%s (%s)\t-\t%s%n",
+                        category.getName(),
+                        category.getFormattedCategoryType(),
+                        formatter.formatAmount(walletService.getCategoryBalance(category)));
+            });
         } catch (Exception e) {
             System.out.println(formatter.formatError(e.getMessage()));
         }
@@ -611,7 +588,7 @@ public class MenuManager {
     }
 
     private void handleNewTransfer() {
-        System.out.println("Переводы временно недоступны");
+        ColorPrinter.println("Переводы временно недоступны", Color.RED);
     }
 
     private void handleChangePassword() {
@@ -637,10 +614,12 @@ public class MenuManager {
     }
 
     private void handleNotificationSettings() {
+        menuItemIsUnderReconstruction();
         try {
             System.out.println("Настройки уведомлений:");
             System.out.println("1. Включить все уведомления");
             System.out.println("2. Отключить все уведомления");
+            System.out.println("3. Назад");
 
             String choice = inputValidator.readString("Ваш выбор: ");
 
@@ -652,6 +631,8 @@ public class MenuManager {
                 case "2" -> {
                     notificationService.disableNotifications(sessionState.getCurrentUser().getId());
                     System.out.println(formatter.formatSuccess("Уведомления отключены"));
+                }
+                case "3" -> {
                 }
                 default -> System.out.println(formatter.formatError("Неверный выбор"));
             }
@@ -749,6 +730,13 @@ class InputValidator {
         return scanner.nextLine().trim();
     }
 
+    public String readMaskedPassword(String prompt) {
+        System.out.print(prompt + Color.GRAY.getCode() + Color.BG_GRAY.getCode() + "test  ");
+        String password = scanner.nextLine().trim();
+        System.out.print(Color.RESET.getCode());
+        return password;
+    }
+
     public BigDecimal readAmount(String prompt) {
         while (true) {
             try {
@@ -782,11 +770,15 @@ class OutputFormatter {
             DateTimeFormatter.ofPattern(ApplicationConfig.getProperty("app.date-format"));
 
     public String formatSuccess(String message) {
-        return "✓ " + message;
+        return ColorPrinter.getColoredString("✓ " + message, Color.GREEN);
     }
 
     public String formatError(String message) {
-        return "✗ Ошибка: " + message;
+        return ColorPrinter.getColoredString("✗ Ошибка: " + message, Color.RED);
+    }
+
+    public String formatCaption(String message, Color textColor, Color bgColor) {
+        return "\n" + ColorPrinter.getColoredString("  " + message + "  ", textColor, bgColor);
     }
 
     public String formatAmount(BigDecimal amount) {
@@ -797,7 +789,7 @@ class OutputFormatter {
         StringBuilder sb = new StringBuilder();
 
         // Форматируем дату
-//        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
         sb.append(transaction.getCreated().format(dateFormatter))
                 .append(" | ");
 

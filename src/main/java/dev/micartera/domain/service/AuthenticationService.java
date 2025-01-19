@@ -29,9 +29,9 @@ public class AuthenticationService {
         if (!validationService.validatePassword(password)) {
             throw new IllegalArgumentException("Некорректный пароль");
         }
-//        if (userRepository.existsByLogin(login)) {
-//            throw new IllegalStateException("Пользователь уже существует");
-//        }
+        if (userRepository.existsByLogin(login)) {
+            throw new IllegalStateException("Пользователь уже существует");
+        }
 
         User user = User.builder()
                 .id(UUID.randomUUID())
@@ -45,16 +45,15 @@ public class AuthenticationService {
 
     public Optional<User> authenticate(String login, String password) {
         logger.debug("Попытка аутентификации пользователя: {}", login);
-        User user = userRepository.findByLogin(login)
-                .orElseThrow(() -> new AuthenticationException("Пользователь не найден"));
-//        Optional<User> user = userRepository.findByLogin(login)
-//                .filter(u -> BCrypt.checkpw(password, u.getPasswordHash()));
-        if (BCrypt.checkpw(password, user.getPasswordHash())) {
+        Optional<User> user = userRepository.findByLogin(login);
+        user.orElseThrow(() -> new AuthenticationException("Пользователь не найден"));
+        user = user.filter(u -> BCrypt.checkpw(password, u.getPasswordHash()));
+        if (user.isPresent()) {
             logger.info("Успешная аутентификация пользователя: {}", login);
         } else {
             logger.warn("Неудачная попытка аутентификации: {}", login);
         }
-        return Optional.of(user);
+        return user;
     }
 
     public void changePassword(UUID userId, String newPassword) {
