@@ -28,11 +28,4 @@ public class Category {
         this.name = name;
         this.type = type;
     }
-
-    public String getFormattedCategoryType() {
-        return switch (this.type) {
-            case INCOME -> "Доходы";
-            case EXPENSE -> "Расходы";
-        };
-    }
 }
