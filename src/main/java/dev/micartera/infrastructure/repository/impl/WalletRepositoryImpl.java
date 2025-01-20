@@ -46,7 +46,6 @@ public class WalletRepositoryImpl implements WalletRepository {
 
         try {
             String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
-//            System.out.println(content);
             return Optional.of(JsonUtils.fromJson(content, Wallet.class));
         } catch (IOException e) {
             logger.error("Error reading wallet: {}", userId, e);

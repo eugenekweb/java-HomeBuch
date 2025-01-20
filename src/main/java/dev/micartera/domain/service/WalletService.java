@@ -1,8 +1,11 @@
 package dev.micartera.domain.service;
 
-import dev.micartera.domain.model.*;
-import dev.micartera.infrastructure.repository.WalletRepository;
 import dev.micartera.domain.exception.ValidationException;
+import dev.micartera.domain.model.Budget;
+import dev.micartera.domain.model.Category;
+import dev.micartera.domain.model.Transaction;
+import dev.micartera.domain.model.Wallet;
+import dev.micartera.infrastructure.repository.WalletRepository;
 import dev.micartera.presentation.service.SessionState;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -12,7 +15,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.TemporalAdjusters;
-import java.util.*;
+import java.util.Optional;
+import java.util.UUID;
 
 @RequiredArgsConstructor
 public class WalletService {
@@ -62,6 +66,7 @@ public class WalletService {
         checkLowBalance(wallet);
         walletRepository.save(wallet);
     }
+
     public void addCategory(String name, Category.CategoryType type) {
         Wallet wallet = sessionState.getCurrentWallet();
         Category category = Category.builder()

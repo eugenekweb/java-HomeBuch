@@ -1,13 +1,16 @@
 package dev.micartera.domain.service;
 
-import dev.micartera.domain.model.*;
+import dev.micartera.domain.model.Transaction;
+import dev.micartera.domain.model.User;
+import dev.micartera.domain.model.Wallet;
 import dev.micartera.presentation.service.SessionState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 public class TransactionService {
@@ -35,13 +38,16 @@ public class TransactionService {
 
     public List<Transaction> getTransactionHistory(LocalDateTime startDate, LocalDateTime endDate) {
         User user = sessionState.getCurrentUser();
-        logger.debug("Запрос истории транзакций: userId={}, период: {} - {}",
-                user.getId(), startDate, endDate);
+        logger.debug("Запрос истории транзакций: userId={}, период: {} - {}", user.getLogin(), startDate, endDate);
+
+        Wallet wallet = sessionState.getCurrentWallet();
         try {
-
-            return null; // TODO: реализовать
-
-//            logger.info("История транзакций успешно получена для пользователя: {}", user.getId());
+            List<Transaction> transactions = wallet.getTransactionHistory().stream()
+                    .filter(tx -> !tx.getCreated().isBefore(startDate) && !tx.getCreated().isAfter(endDate))
+                    .sorted(Comparator.comparing(Transaction::getCreated).reversed())
+                    .toList();
+            logger.info("История транзакций успешно получена для пользователя: {}", user.getLogin());
+            return transactions;
         } catch (Exception e) {
             logger.error("Ошибка при получении истории транзакций", e);
             throw e;

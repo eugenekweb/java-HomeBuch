@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -86,21 +85,6 @@ public class UserRepositoryImpl implements UserRepository {
         if (!file.delete() && file.exists()) {
             logger.error("Could not delete user file: {}", id);
             throw new RuntimeException("Could not delete user");
-        }
-    }
-
-    @Override
-    public void clear() {
-        try {
-            File usersDir = new File(usersPath);
-            for (File userFile : usersDir.listFiles()) {
-                String content = Files.readString(userFile.toPath());
-                User user = JsonUtils.fromJson(content, User.class);
-                // Перезаписываем файл заново чтобы обновить кэш
-                save(user);
-            }
-        } catch (IOException e) {
-            logger.error("Ошибка при очистке кэша пользователей", e);
         }
     }
 }

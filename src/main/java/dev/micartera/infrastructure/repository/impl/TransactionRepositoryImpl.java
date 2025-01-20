@@ -8,7 +8,9 @@ import dev.micartera.infrastructure.util.JsonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -38,7 +40,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             }
             return transaction;
         } catch (IOException e) {
-            logger.error("Error saving transaction: " + transaction.getId(), e);
+            logger.error("Error saving transaction: {}", transaction.getId(), e);
             throw new RuntimeException("Could not save transaction", e);
         }
     }
@@ -64,7 +66,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             }
             return transferFile;
         } catch (IOException e) {
-            logger.error("Error saving transfer file: " + transferFile.getTransactionId(), e);
+            logger.error("Error saving transfer file: {}", transferFile.getTransactionId(), e);
             throw new RuntimeException("Could not save transfer file", e);
         }
     }
@@ -85,7 +87,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                     return found;
                 }
             } catch (IOException e) {
-                logger.error("Error reading transactions file: " + file.getName(), e);
+                logger.error("Error reading transactions file: {}", file.getName(), e);
             }
         }
         return Optional.empty();
@@ -100,7 +102,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                     .filter(t -> t.getStatus() == Transaction.TransactionStatus.PENDING)
                     .collect(Collectors.toList());
         } catch (IOException e) {
-            logger.error("Error reading transactions: " + userId, e);
+            logger.error("Error reading transactions: {}", userId, e);
             return new ArrayList<>();
         }
     }
@@ -114,7 +116,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                     .filter(t -> !t.getCreated().isBefore(from) && !t.getCreated().isAfter(to))
                     .collect(Collectors.toList());
         } catch (IOException e) {
-            logger.error("Error reading transaction history: " + userId, e);
+            logger.error("Error reading transaction history: {}", userId, e);
             return new ArrayList<>();
         }
     }
@@ -145,7 +147,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                 String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
                 transfers.add(JsonUtils.fromJson(content, TransferFile.class));
             } catch (IOException e) {
-                logger.error("Error reading transfer file: " + file.getName(), e);
+                logger.error("Error reading transfer file: {}", file.getName(), e);
             }
         }
         return transfers;
@@ -156,7 +158,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         String directory = transfersPath + userId + "/" + (isIncoming ? "in" : "out") + "/";
         File file = new File(directory + transactionId + ".json");
         if (!file.delete() && file.exists()) {
-            logger.error("Could not delete transfer file: " + transactionId);
+            logger.error("Could not delete transfer file: {}", transactionId);
             throw new RuntimeException("Could not delete transfer file");
         }
     }

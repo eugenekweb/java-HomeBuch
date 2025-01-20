@@ -12,7 +12,5 @@ public interface UserRepository {
     Optional<User> findByLogin(String login);
     boolean existsByLogin(String login);
     void delete(UUID id);
-
-     void clear();
 }
 

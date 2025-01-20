@@ -12,8 +12,10 @@ import java.util.UUID;
 
 public class SessionState {
     private static final Logger logger = LoggerFactory.getLogger(SessionState.class);
-    @Getter private User currentUser;
-    @Getter private Wallet currentWallet;
+    @Getter
+    private User currentUser;
+    @Getter
+    private Wallet currentWallet;
     private final WalletRepositoryImpl walletRepository;
     private final UserRepositoryImpl userRepository;
 

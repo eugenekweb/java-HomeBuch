@@ -1,10 +1,10 @@
 package dev.micartera.infrastructure.config;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.core.FileAppender;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class LoggerConfig {
     private static final Logger logger = LoggerFactory.getLogger(LoggerConfig.class);

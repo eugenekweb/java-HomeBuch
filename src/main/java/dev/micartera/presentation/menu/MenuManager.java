@@ -15,10 +15,10 @@ import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileOutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -36,6 +36,9 @@ public class MenuManager {
     private final NotificationService notificationService;
     private final ValidationService validationService;
     private boolean balanceIsAlwaysVisible = true;
+    private final String MENU_SIGN = " \u25BC";
+    private final String CLOSE_SIGN = " \u2612";
+    private final String SIGNOUT_SIGN = " \u27A6";
 
     public MenuManager() {
         UserRepositoryImpl userRepository = new UserRepositoryImpl();
@@ -50,6 +53,7 @@ public class MenuManager {
         this.validationService = new ValidationService();
 
         this.authenticationService = new AuthenticationService(
+                sessionState,
                 userRepository,
                 validationService
         );
@@ -80,48 +84,50 @@ public class MenuManager {
     private void initializeMenus() {
         // Главное меню (неавторизованный пользователь)
         Menu mainUnauthorized = new Menu("Главное меню");
-        mainUnauthorized.addOption("1", "Вход в систему", () -> switchMenu("auth"));
-        mainUnauthorized.addOption("2", "Регистрация", () -> switchMenu("register"));
-        mainUnauthorized.addOption("3", "Выход из приложения", () -> System.exit(0));
+        mainUnauthorized.addOption("1", "Вход в систему" + MENU_SIGN, () -> switchMenu("auth"));
+        mainUnauthorized.addOption("2", "Регистрация" + MENU_SIGN, () -> switchMenu("register"));
+        mainUnauthorized.addOption("3", "Выход из приложения" + CLOSE_SIGN, () -> System.exit(0));
         menus.put("main_unauthorized", mainUnauthorized);
 
         // Меню авторизации
         Menu authMenu = new Menu("Авторизация");
         authMenu.addOption("1", "Войти", this::handleLogin);
-        authMenu.addOption("2", "Назад", () -> switchMenu("main_unauthorized"));
+        authMenu.addOption("2", "Назад" + MENU_SIGN, () -> switchMenu("main_unauthorized"));
         menus.put("auth", authMenu);
 
         // Меню регистрации
         Menu registerMenu = new Menu("Регистрация");
         registerMenu.addOption("1", "Зарегистрироваться", this::handleRegistration);
-        registerMenu.addOption("2", "Назад", () -> switchMenu("main_unauthorized"));
+        registerMenu.addOption("2", "Назад" + MENU_SIGN, () -> switchMenu("main_unauthorized"));
         menus.put("register", registerMenu);
 
         // Главное меню (авторизованный пользователь)
         Menu mainAuthorized = new Menu("Главное меню");
         // TODO: delete TEST_BUTTON after tests
-//        mainAuthorized.addOption("0", ColorPrinter.getColoredString("TEST_BUTTON", Color.PURPLE), this::handleViewCategories);
-        mainAuthorized.addOption("1", "Управление финансами", () -> switchMenu("finance"));
-        mainAuthorized.addOption("2", "Переводы", () -> switchMenu("transfers"));
-        mainAuthorized.addOption("3", "Статистика и отчеты", () -> switchMenu("reports"));
-        mainAuthorized.addOption("4", "Настройки", () -> switchMenu("settings"));
-        mainAuthorized.addOption("5", "Выход из аккаунта", () -> handleLogout());
-        mainAuthorized.addOption("6", "Выход из приложения", () -> System.exit(0));
+//        mainAuthorized.addOption("0", ColorPrinter.getColoredString("TEST_BUTTON", Color.PURPLE),
+//                this::handleCustomPeriodReport);
+        mainAuthorized.addOption("1", "Управление финансами" + MENU_SIGN, () -> switchMenu("finance"));
+        mainAuthorized.addOption("2", "Переводы" + MENU_SIGN, () -> switchMenu("transfers"));
+        mainAuthorized.addOption("3", "Статистика и отчеты" + MENU_SIGN, () -> switchMenu("reports"));
+        mainAuthorized.addOption("4", "Настройки" + MENU_SIGN, () -> switchMenu("settings"));
+        mainAuthorized.addOption("5", "Выход из аккаунта" + SIGNOUT_SIGN, () -> handleLogout());
+        mainAuthorized.addOption("6", "Выход из приложения" + CLOSE_SIGN, () -> System.exit(0));
         menus.put("main_authorized", mainAuthorized);
 
         // Меню управления финансами
         Menu financeMenu = new Menu("Управление финансами");
         financeMenu.addOption("1", "Добавить расход", this::handleAddExpense);
         financeMenu.addOption("2", "Добавить доход", this::handleAddIncome);
-        financeMenu.addOption("3", "Управление категориями", () -> switchMenu("categories"));
+        financeMenu.addOption("3", "Управление категориями" + MENU_SIGN, () -> switchMenu("categories"));
         financeMenu.addOption("4", "Просмотр баланса и бюджетов", this::handleViewBalance);
-        financeMenu.addOption("5", "Назад", () -> switchMenu("main_authorized"));
-        financeMenu.addOption("6", "Выход из аккаунта", () -> handleLogout());
+        financeMenu.addOption("5", "Назад" + MENU_SIGN, () -> switchMenu("main_authorized"));
+        financeMenu.addOption("6", "Выход из аккаунта" + SIGNOUT_SIGN, () -> handleLogout());
         menus.put("finance", financeMenu);
 
         currentMenu = mainUnauthorized; // начальное меню
 
         initializeCategories();
+        initializeBudgets();
         initializeTransfers();
         initializeReports();
         initializeSettings();
@@ -132,24 +138,33 @@ public class MenuManager {
         categoriesMenu.addOption("1", "Просмотр категорий", this::handleViewCategories);
         categoriesMenu.addOption("2", "Создание категории", this::handleCreateCategory);
         categoriesMenu.addOption("3", "Удаление категории", this::handleDeleteCategory);
-        categoriesMenu.addOption("4", "Установка бюджета", this::handleSetBudget);
-        categoriesMenu.addOption("5", "Удаление бюджета", this::handleDeleteBudget);
-        // TODO:
-        // categoriesMenu.addOption("6", "Включить/отключить бюджет", this::handleToggleBudget);
-        // categoriesMenu.addOption("7", "Изменить лимит бюджета", this::handleUpdateBudgetLimit);
-        // categoriesMenu.addOption("8", "Изменить дату начала бюджета", this::handleUpdateBudgetStartDate);
-        categoriesMenu.addOption("6", "Назад", () -> switchMenu("finance"));
-        categoriesMenu.addOption("7", "Выход из аккаунта", () -> handleLogout());
+        categoriesMenu.addOption("4", "Управление бюджетами" + MENU_SIGN, () -> switchMenu("budgets"));
+        categoriesMenu.addOption("5", "Назад" + MENU_SIGN, () -> switchMenu("finance"));
+        categoriesMenu.addOption("6", "Выход из аккаунта" + SIGNOUT_SIGN, () -> handleLogout());
         menus.put("categories", categoriesMenu);
+    }
+
+    private void initializeBudgets() {
+        Menu budgetsMenu = new Menu("Управление бюджетами");
+        budgetsMenu.addOption("1", "Установка бюджета", this::handleSetBudget);
+        budgetsMenu.addOption("2", "Удаление бюджета", this::handleDeleteBudget);
+        budgetsMenu.addOption("3", "Просмотр баланса и бюджетов", this::handleViewBalance);
+        // TODO:
+        // budgetsMenu.addOption("4", "Включить/отключить бюджет", this::handleToggleBudget);
+        // budgetsMenu.addOption("5", "Изменить лимит бюджета", this::handleUpdateBudgetLimit);
+        // budgetsMenu.addOption("6", "Изменить дату начала бюджета", this::handleUpdateBudgetStartDate);
+        budgetsMenu.addOption("4", "Назад" + MENU_SIGN, () -> switchMenu("main_authorized"));
+        budgetsMenu.addOption("5", "Выход из аккаунта" + SIGNOUT_SIGN, () -> handleLogout());
+        menus.put("budgets", budgetsMenu);
     }
 
     private void initializeTransfers() {
         Menu transfersMenu = new Menu("Переводы");
         transfersMenu.addOption("1", "Новый перевод", this::handleNewTransfer);
-        transfersMenu.addOption("2", "Активные переводы", () -> switchMenu("active_transfers"));
-        transfersMenu.addOption("3", "История переводов", () -> switchMenu("transfer_history"));
-        transfersMenu.addOption("4", "Назад", () -> switchMenu("main_authorized"));
-        transfersMenu.addOption("5", "Выход из аккаунта", () -> handleLogout());
+        transfersMenu.addOption("2", "Активные переводы" + MENU_SIGN, () -> switchMenu("active_transfers"));
+        transfersMenu.addOption("3", "История переводов" + MENU_SIGN, () -> switchMenu("transfer_history"));
+        transfersMenu.addOption("4", "Назад" + MENU_SIGN, () -> switchMenu("main_authorized"));
+        transfersMenu.addOption("5", "Выход из аккаунта" + SIGNOUT_SIGN, () -> handleLogout());
         menus.put("transfers", transfersMenu);
     }
 
@@ -157,10 +172,10 @@ public class MenuManager {
         Menu reportsMenu = new Menu("Статистика и отчеты");
         reportsMenu.addOption("1", "Текущий период", this::handleCurrentPeriodReport);
         reportsMenu.addOption("2", "Выбор периода", this::handleCustomPeriodReport);
-        reportsMenu.addOption("3", "История операций", () -> switchMenu("transaction_history"));
-        reportsMenu.addOption("4", "Бюджеты", () -> switchMenu("budgets"));
-        reportsMenu.addOption("5", "Назад", () -> switchMenu("main_authorized"));
-        reportsMenu.addOption("6", "Выход из аккаунта", () -> handleLogout());
+        reportsMenu.addOption("3", "История транзакций", this::handleAllTimeReport);
+        reportsMenu.addOption("4", "Бюджеты" + MENU_SIGN, () -> switchMenu("budgets"));
+        reportsMenu.addOption("5", "Назад" + MENU_SIGN, () -> switchMenu("main_authorized"));
+        reportsMenu.addOption("6", "Выход из аккаунта" + SIGNOUT_SIGN, () -> handleLogout());
         menus.put("reports", reportsMenu);
     }
 
@@ -168,8 +183,9 @@ public class MenuManager {
         Menu settingsMenu = new Menu("Настройки");
         settingsMenu.addOption("1", "Сменить пароль", this::handleChangePassword);
         settingsMenu.addOption("2", "Настройка уведомлений", this::handleNotificationSettings);
-        settingsMenu.addOption("3", "Назад", () -> switchMenu("main_authorized"));
-        settingsMenu.addOption("4", "Выход из аккаунта", () -> handleLogout());
+        settingsMenu.addOption("3", "Отображение баланса", this::handleBalanceSettings);
+        settingsMenu.addOption("4", "Назад" + MENU_SIGN, () -> switchMenu("main_authorized"));
+        settingsMenu.addOption("5", "Выход из аккаунта" + SIGNOUT_SIGN, () -> handleLogout());
         menus.put("settings", settingsMenu);
     }
 
@@ -179,10 +195,8 @@ public class MenuManager {
 
     public void displayCurrentMenu() {
         if (balanceIsAlwaysVisible && sessionState.getCurrentWallet() != null) { // TODO: если включен флаг отображения баланса везде -> Notifications
-            Wallet wallet = sessionState.getCurrentWallet();
             formatter.printDelimiter();
-            ColorPrinter.println("###  Текущий баланс: "
-                    + formatter.formatAmount(wallet.getBalance()) + "  ###", Color.BLUE);
+            displayBalance();
         }
 
         // Показываем уведомления если они есть
@@ -201,13 +215,20 @@ public class MenuManager {
         System.out.println(formatter.formatPrompt("Выберите действие: "));
     }
 
+    private void displayBalance() {
+        System.out.println(formatter.formatCaption(
+                "###  Текущий баланс: "
+                        + formatter.formatAmount(sessionState.getCurrentWallet().getBalance())
+                        + "  ###"));
+    }
+
     public void handleInput() {
         try {
             String input = scanner.nextLine().trim();
 
             if (input.equalsIgnoreCase("exit")) {
                 System.out.println("До свидания!");
-                saveSessionState();
+//                saveSessionState();
                 System.exit(0);
             }
 
@@ -232,28 +253,11 @@ public class MenuManager {
     // Обработчики команд
     private void handleAddIncome() {
         try {
-//            if (currentUserId == null) {
-//                throw new IllegalStateException("Пользователь не авторизован");
-//            }
-
             BigDecimal amount = inputValidator.readAmount("Введите сумму дохода: ");
             Category category = selectCategory(Category.CategoryType.INCOME);
             String description = inputValidator.readString("Введите описание (опционально): ");
 
             walletService.addIncome(amount, category, description);
-//            notificationService.notifyTransaction(new Transaction(
-//                    UUID.randomUUID(),
-//                    Transaction.TransactionType.INCOME,
-//                    amount,
-//                    category,
-//                    LocalDateTime.now(),
-//                    Transaction.TransactionStatus.APPROVED,
-//                    description,
-//                    null,
-//                    null,
-//                    null
-//            ));
-
             System.out.println(formatter.formatSuccess("Доход успешно добавлен"));
         } catch (Exception e) {
             System.out.println(formatter.formatError(e.getMessage()));
@@ -266,21 +270,7 @@ public class MenuManager {
             Category category = selectCategory(Category.CategoryType.EXPENSE);
             String description = inputValidator.readString("Введите описание (опционально): ");
 
-//            User currentUser = sessionState.getCurrentUser();
             walletService.addExpense(amount, category, description);
-//            notificationService.notifyTransaction(new Transaction(
-//                    UUID.randomUUID(),
-//                    Transaction.TransactionType.EXPENSE,
-//                    amount,
-//                    category,
-//                    LocalDateTime.now(),
-//                    Transaction.TransactionStatus.APPROVED,
-//                    description,
-//                    null,
-//                    null,
-//                    null
-//            ));
-
             System.out.println(formatter.formatSuccess("Расход успешно добавлен"));
         } catch (Exception e) {
             System.out.println(formatter.formatError(e.getMessage()));
@@ -289,16 +279,6 @@ public class MenuManager {
     }
 
     private Category selectCategory(Category.CategoryType type) {
-//        if (currentUserId == null) {
-//            throw new IllegalStateException("Пользователь не авторизован");
-//        }
-//
-//        // Получаем кошелек пользователя
-//        Optional<Wallet> walletOpt = walletService.findWalletByUserId(currentUserId);
-//        if (walletOpt.isEmpty()) {
-//            throw new IllegalStateException("Кошелек пользователя не найден");
-//        }
-
         Wallet wallet = sessionState.getCurrentWallet();
         List<Category> categories = wallet.getCategories().stream()
                 .filter(c -> c.getType() == type)
@@ -350,7 +330,6 @@ public class MenuManager {
                         .filter(c -> c.getName().equals(name) && c.getType() == type)
                         .findFirst()
                         .orElseThrow(() -> new IllegalStateException("Ошибка при создании категории"));
-//                throw new IllegalStateException("Ошибка при получении кошелька");
             } catch (Exception e) {
                 System.out.println(formatter.formatError("Ошибка при создании категории: " + e.getMessage()));
                 System.out.println(formatter.formatPrompt("Попробовать снова? (да/нет)"));
@@ -388,7 +367,6 @@ public class MenuManager {
             }
         } catch (CommandCancelledException e) {
             System.out.println(formatter.formatInfo("Операция отменена"));
-            return;
         } catch (Exception e) {
             logger.error("Ошибка при входе", e);
             System.out.println(formatter.formatError("Ошибка авторизации. " + e.getMessage()));
@@ -414,12 +392,7 @@ public class MenuManager {
 
     private void handleViewCategories() {
         try {
-//            if (currentUserId == null) {
-//                throw new IllegalStateException("Пользователь не авторизован");
-//            }
-
             List<Category> categories = sessionState.getCurrentWallet().getCategories();
-
             if (categories.isEmpty()) {
                 System.out.println(formatter.formatInfo("У вас пока нет категорий"));
                 return;
@@ -561,13 +534,12 @@ public class MenuManager {
 
     private void handleViewBalance() {
         try {
-            Wallet wallet = sessionState.getCurrentWallet();
             if (!balanceIsAlwaysVisible) { // TODO: если не включен флаг отображения баланса везде -> Notifications
-                ColorPrinter.println("###  Текущий баланс: "
-                        + formatter.formatAmount(wallet.getBalance()) + "  ###", Color.BLUE);
+                displayBalance();
             }
 
             // Отображение бюджетов по категориям
+            Wallet wallet = sessionState.getCurrentWallet();
             Map<UUID, Budget> budgets = wallet.getBudgets();
             if (!budgets.isEmpty()) {
                 System.out.println(formatter.formatCaption("Бюджеты по категориям:"));
@@ -592,43 +564,47 @@ public class MenuManager {
                                 formatter.formatDate(budget.getSetAtDate())
                         );
                         formatter.printDelimiter();
+                        System.out.println();
                     }
                 }
             }
         } catch (Exception e) {
-            logger.error("Ошибка при отображении баланса", e);
-            System.out.println(formatter.formatError("Не удалось отобразить баланс"));
+            logger.error("Ошибка при отображении баланса и бюджетов", e);
+            System.out.println(formatter.formatError("Не удалось отобразить баланс и бюджеты"));
         }
     }
 
     private void handleCurrentPeriodReport() {
         try {
-//            if (currentUserId == null) {
-//                throw new IllegalStateException("Пользователь не авторизован");
-//            }
-
             int defaultPeriodMonths = Integer.parseInt(ApplicationConfig.getProperty("app.default-period.months"));
             LocalDateTime endDate = LocalDateTime.now();
             LocalDateTime startDate = endDate.minusMonths(defaultPeriodMonths);
 
             List<Transaction> transactions = transactionService.getTransactionHistory(startDate, endDate);
             showTransactionReport(transactions, startDate, endDate);
-//            List<Transaction> transactions = new ArrayList<>(); // Временная заглушка
-
         } catch (Exception e) {
             logger.error("Ошибка при формировании отчета за текущий период", e);
-            System.out.println(formatter.formatError("Не удалось сформировать отчет: " + e.getMessage()));
+            System.out.println(formatter.formatError("Не удалось сформировать отчет"));
+        }
+    }
+
+    private void handleAllTimeReport() {
+        try {
+            List<Transaction> transactions =
+                    transactionService.getTransactionHistory(LocalDateTime.MIN, LocalDateTime.now());
+            showTransactionReport(transactions, LocalDateTime.MIN, LocalDateTime.now());
+        } catch (Exception e) {
+            logger.error("Ошибка при формировании истории транзакций", e);
+            System.out.println(formatter.formatError("Не удалось сформировать историю транзакций"));
         }
     }
 
     private void handleCustomPeriodReport() {
         try {
-//            if (currentUserId == null) {
-//                throw new IllegalStateException("Пользователь не авторизован");
-//            }
-
             LocalDateTime startDate = inputValidator.readDate("Введите начальную дату (dd.MM.yyyy): ");
             LocalDateTime endDate = inputValidator.readDate("Введите конечную дату (dd.MM.yyyy): ");
+            startDate = startDate.with(LocalTime.MIN); // сбрасываем время на 00:00
+            endDate = endDate.with(LocalTime.MAX); // сбрасываем время на 23:59
 
             if (endDate.isBefore(startDate)) {
                 System.out.println(formatter.formatError("Конечная дата не может быть раньше начальной"));
@@ -650,13 +626,13 @@ public class MenuManager {
         }
 
         DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern(ApplicationConfig.getProperty("app.date-format"));
-        System.out.printf("Отчет по транзакциям за период: %s - %s%n",
+        String reportsCaption = String.format("Отчет по транзакциям за период: %s - %s",
                 from.format(dateFormat), to.format(dateFormat));
+        System.out.println(formatter.formatCaption(reportsCaption));
 
         BigDecimal totalIncome = BigDecimal.ZERO;
         BigDecimal totalExpense = BigDecimal.ZERO;
 
-        System.out.println(formatter.formatCaption("Список транзакций:"));
         for (Transaction t : transactions) {
             System.out.println(formatter.formatTransaction(t));
 
@@ -667,7 +643,7 @@ public class MenuManager {
             }
         }
 
-        System.out.println(formatter.formatCaption("Итого:"));
+        System.out.println(formatter.formatCaption("Итого за период:"));
         System.out.println("Доходы: " + formatter.formatAmount(totalIncome));
         System.out.println("Расходы: " + formatter.formatAmount(totalExpense));
         System.out.println("Баланс: " + formatter.formatAmount(totalIncome.subtract(totalExpense)));
@@ -683,7 +659,7 @@ public class MenuManager {
             String currentPassword = inputValidator.readString("Введите текущий пароль: ");
             String newPassword = inputValidator.readString("Введите новый пароль: ");
 
-            if (!authenticationService.authenticate(currentUser.getLogin(), currentPassword).isPresent()) {
+            if (authenticationService.authenticate(currentUser.getLogin(), currentPassword).isEmpty()) {
                 throw new AuthenticationException("Неверный текущий пароль");
             }
 
@@ -692,6 +668,8 @@ public class MenuManager {
             }
             authenticationService.changePassword(currentUser.getId(), newPassword);
             System.out.println(formatter.formatSuccess("Пароль успешно изменен"));
+//            sessionState.saveAndClose();
+            System.out.println(formatter.formatInfo("Авторизуйтесь заново."));
             handleLogout();
         } catch (Exception e) {
             logger.error("Ошибка при смене пароля", e);
@@ -699,8 +677,36 @@ public class MenuManager {
         }
     }
 
+    private void handleBalanceSettings() {
+        try {
+            System.out.println(formatter.formatCaption("Показывать состояние баланса:"));
+            System.out.println("1. Всегда (при любой операции)");
+            System.out.println("2. Только в соответствующих меню");
+            System.out.println("3. Назад");
+
+            String choice = inputValidator.readString("Ваш выбор: ");
+
+            switch (choice) {
+                case "1" -> {
+                    balanceIsAlwaysVisible = true;
+                    System.out.println(formatter.formatSuccess("Отображение баланса всегда - включено"));
+                }
+                case "2" -> {
+                    balanceIsAlwaysVisible = false;
+                    System.out.println(formatter.formatSuccess("Отображение баланса всегда - выключено"));
+                }
+                case "3" -> {
+                }
+                default -> System.out.println(formatter.formatError("Неверный выбор"));
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка при настройке отображения баланса", e);
+            System.out.println(formatter.formatError("Не удалось изменить настройки отображения баланса"));
+        }
+    }
+
     private void handleNotificationSettings() {
-        menuItemIsUnderReconstruction();
+        menuItemIsUnderReconstruction(); // TODO: настройки пока хранятся только во время сессии
         try {
             System.out.println(formatter.formatCaption("Настройки уведомлений:"));
             System.out.println("1. Включить все уведомления");
@@ -728,57 +734,21 @@ public class MenuManager {
         }
     }
 
-//    public void restoreSessionState() {
-//        try {
-//            Properties props = new Properties();
-//            File sessionFile = new File("./storage/session.properties");
-//            if (sessionFile.exists()) {
-//                props.load(new FileInputStream(sessionFile));
-//                String userId = props.getProperty("currentUserId");
-//                if (userId != null) {
-//                    sessionState.setCurrentSession(UUID.fromString(userId));
-//                    currentMenu = menus.get("main");
-//                } else {
-//                    currentMenu = menus.get("auth");
-//                }
-//            } else {
-//                currentMenu = menus.get("auth");
-//            }
-//        } catch (Exception e) {
-//            logger.error("Ошибка восстановления сессии", e);
-//            currentMenu = menus.get("auth");
-//        }
-//    }
-
     public void emergencyShutdown() {
         try {
             User currentUser = sessionState.getCurrentUser();
             if (currentUser != null) {
                 sessionState.saveAndClose();
                 logger.info("Состояние сессии сохранено при аварийном завершении");
-                saveSessionState();
                 scanner.close();
             }
         } catch (Exception e) {
             logger.error("Ошибка при аварийном сохранении состояния", e);
         }
     }
-
-    private void saveSessionState() {
-        try {
-            Properties props = new Properties();
-            User currentUser = sessionState.getCurrentUser();
-            if (currentUser != null) {
-                props.setProperty("currentUserId", currentUser.getId().toString());
-            }
-            props.store(new FileOutputStream("./storage/session.properties"), null);
-        } catch (Exception e) {
-            logger.error("Ошибка сохранения состояния сессии", e);
-        }
-    }
-
 }
 
+@Data
 class Menu {
     private final String title;
     private final Map<String, MenuOption> options;
@@ -791,14 +761,6 @@ class Menu {
     public void addOption(String key, String description, Runnable action) {
         options.put(key, new MenuOption(description, action));
     }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public Map<String, MenuOption> getOptions() {
-        return options;
-    }
 }
 
 @Data
@@ -808,6 +770,7 @@ class MenuOption {
 }
 
 class InputValidator {
+    private static final Logger logger = LoggerFactory.getLogger(InputValidator.class);
     private final Scanner scanner = new Scanner(System.in);
     private final ValidationService validationService = new ValidationService();
     private final OutputFormatter formatter = new OutputFormatter();
@@ -831,7 +794,7 @@ class InputValidator {
     public BigDecimal readAmount(String prompt) {
         while (true) {
             try {
-                System.out.print(prompt);
+                System.out.print(formatter.formatPrompt(prompt));
                 BigDecimal amount = new BigDecimal(scanner.nextLine().trim());
                 if (validationService.validateAmount(amount)) {
                     return amount;
@@ -844,12 +807,14 @@ class InputValidator {
     }
 
     public LocalDateTime readDate(String prompt) {
-        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
         while (true) {
             try {
-                System.out.print(prompt);
-                return LocalDateTime.parse(scanner.nextLine().trim() + " 00:00", dateFormatter);
+                System.out.print(formatter.formatPrompt(prompt));
+                String date = scanner.nextLine().trim();
+                return LocalDateTime.parse(date + " 00:00", dateFormatter);
             } catch (Exception e) {
+                logger.error("Ошибка при вводе даты", e);
                 System.out.println(formatter.formatError("Некорректная дата. Используйте формат ДД.ММ.ГГГГ"));
             }
         }
@@ -859,9 +824,12 @@ class InputValidator {
 class OutputFormatter {
     private static final DateTimeFormatter dateFormatter =
             DateTimeFormatter.ofPattern(ApplicationConfig.getProperty("app.date-format"));
+    private static final String INCOME_SIGN = "➕ ";
+    private static final String EXPENSE_SIGN = "➖ ";
+    private static final String TRANSFER_SIGN = " ↔  ";
 
     public void printDelimiter() {
-        System.out.println("-".repeat(32));
+        System.out.print("-".repeat(32));
     }
 
     public String formatSuccess(String message) {
@@ -899,7 +867,27 @@ class OutputFormatter {
     }
 
     public String formatTransaction(Transaction transaction) {
+
         StringBuilder sb = new StringBuilder();
+        String sign = "";
+        String colorCode = "";
+        switch (transaction.getType()) {
+            case INCOME -> {
+                sign = INCOME_SIGN;
+                colorCode = Color.BRIGHT_WHITE.getCode();
+            }
+            case EXPENSE -> {
+                sign = EXPENSE_SIGN;
+                colorCode = Color.RESET.getCode();
+            }
+            case TRANSFER -> { // TODO: будет реализовано позже при добавлении переводов
+                sign = TRANSFER_SIGN;
+                colorCode = Color.GRAY.getCode();
+            }
+        }
+
+        // Выделим транзакции по типу разными цветами
+        sb.append(colorCode);
 
         // Форматируем дату
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
@@ -907,11 +895,7 @@ class OutputFormatter {
                 .append(" | ");
 
         // Добавляем тип транзакции и сумму
-        switch (transaction.getType()) {
-            case INCOME -> sb.append("➕");
-            case EXPENSE -> sb.append("➖");
-            case TRANSFER -> sb.append("↔"); // TODO: будет реализовано позже при добавлении переводов
-        }
+        sb.append(sign);
 
         sb.append(formatAmount(transaction.getAmount()))
                 .append(" | ");
@@ -931,8 +915,8 @@ class OutputFormatter {
         if (transaction.getType() == Transaction.TransactionType.TRANSFER) {
             sb.append(" | Статус: ").append(transaction.getStatus());
         }
+        sb.append(Color.RESET.getCode());
 
         return sb.toString();
     }
-
 }

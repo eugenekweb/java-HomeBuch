@@ -4,6 +4,7 @@ package dev.micartera.domain.service;
 import dev.micartera.domain.exception.AuthenticationException;
 import dev.micartera.domain.model.User;
 import dev.micartera.infrastructure.repository.UserRepository;
+import dev.micartera.presentation.service.SessionState;
 import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,10 +15,12 @@ import java.util.UUID;
 
 public class AuthenticationService {
     private static final Logger logger = LoggerFactory.getLogger(AuthenticationService.class);
+    private final SessionState sessionState;
     private final UserRepository userRepository;
     private final ValidationService validationService;
 
-    public AuthenticationService(UserRepository userRepository, ValidationService validationService) {
+    public AuthenticationService(SessionState sessionState, UserRepository userRepository, ValidationService validationService) {
+        this.sessionState = sessionState;
         this.userRepository = userRepository;
         this.validationService = validationService;
     }
@@ -64,7 +67,7 @@ public class AuthenticationService {
         user.setPasswordHash(newPasswordHash);
 
         userRepository.save(user);
-        userRepository.clear();
+        sessionState.setCurrentSession(userId);
         logger.info("Пароль успешно изменен для пользователя: {}", user.getLogin());
     }
 }

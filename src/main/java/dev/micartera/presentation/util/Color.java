@@ -1,6 +1,5 @@
 package dev.micartera.presentation.util;
 
-import lombok.Data;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
