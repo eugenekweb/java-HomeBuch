@@ -5,6 +5,7 @@ import dev.micartera.domain.model.Budget;
 import dev.micartera.domain.model.Category;
 import dev.micartera.domain.model.Transaction;
 import dev.micartera.domain.model.Wallet;
+import dev.micartera.infrastructure.config.ApplicationConfig;
 import dev.micartera.infrastructure.repository.WalletRepository;
 import dev.micartera.presentation.service.SessionState;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.TemporalAdjusters;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,7 +27,8 @@ public class WalletService {
     private final ValidationService validationService;
     private final NotificationService notificationService;
     private final SessionState sessionState;
-    private static final BigDecimal LOW_BALANCE_THRESHOLD = new BigDecimal("6350.00");
+    private static final BigDecimal LOW_BALANCE_THRESHOLD
+            = new BigDecimal(ApplicationConfig.getProperty("low.balance.threshold"));
 
 
     public Wallet createWallet(UUID userId) {

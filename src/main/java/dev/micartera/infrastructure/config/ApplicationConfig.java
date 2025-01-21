@@ -1,61 +1,94 @@
 package dev.micartera.infrastructure.config;
 
 
+import lombok.SneakyThrows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Properties;
 
 public class ApplicationConfig {
     private static final Logger logger = LoggerFactory.getLogger(ApplicationConfig.class);
     private static Properties properties;
-    private static final String CONFIG_PATH = "./storage/config/application.properties";
+    private static final String USER_DIR = System.getProperty("user.dir");
+    private static final Path CONFIG_PATH = Paths.get(USER_DIR, "storage/config/application.properties");
+    private static final Path STORAGE_PATH = Paths.get(USER_DIR, "storage");
 
-    public static void initialize() throws IOException {
+    @SneakyThrows
+    public static void initialize() {
         properties = new Properties();
-        File configFile = new File(CONFIG_PATH);
 
-        if (!configFile.exists()) {
+        if (!Files.exists(CONFIG_PATH)) {
             createDefaultConfig();
         }
 
-        try (FileInputStream fis = new FileInputStream(configFile)) {
+        try (InputStream fis = Files.newInputStream(CONFIG_PATH)) {
             properties.load(fis);
         }
 
-        initializeStorage();
+        initializeFileStructure();
     }
 
-    private static void createDefaultConfig() throws IOException {
+    @SneakyThrows
+    private static void createDefaultConfig() {
         // Создание структуры каталогов и конфиг-файла с дефолтными настройками
-        File storageDir = new File("./storage");
-        new File(storageDir, "config").mkdirs();
-        new File(storageDir, "users").mkdir();
-        new File(storageDir, "transfers").mkdir();
-        new File(storageDir, "logs").mkdir();
 
+        initializeFileStructure();
+
+        // Создаем объект Properties и добавляем дефолтные настройки
         Properties defaultProps = new Properties();
-        // Добавление дефолтных настроек
         defaultProps.setProperty("app.storage.path", "storage");
-        defaultProps.setProperty("security.password.validation.enabled", "true");
-        // ... другие настройки по умолчанию
+        defaultProps.setProperty("app.date-format", "yyyy-MM-dd HH:mm");
+        defaultProps.setProperty("app.default-period.months", "1");
 
-        defaultProps.store(new FileOutputStream(CONFIG_PATH), "Default configuration");
+        defaultProps.setProperty("logging.file", "${app.storage.path}/logs/app.log");
+        defaultProps.setProperty("logging.level.root", "INFO");
+        defaultProps.setProperty("logging.pattern", "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n");
+
+        defaultProps.setProperty("security.password.min-length", "3");
+        defaultProps.setProperty("security.password.max-length", "32");
+        defaultProps.setProperty("security.password.validation.enabled", "true");
+        defaultProps.setProperty("validation.password.pattern", "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,}$");
+        defaultProps.setProperty("security.login.validation.enabled", "true");
+        defaultProps.setProperty("validation.login.min-length", "3");
+        defaultProps.setProperty("validation.login.max-length", "20");
+        defaultProps.setProperty("validation.login.pattern", "[a-zA-Z0-9_-]+");
+        defaultProps.setProperty("security.session.timeout", "30");
+
+        defaultProps.setProperty("low.balance.threshold", "1000");
+
+        defaultProps.setProperty("transaction.lifetime.minutes", "1440");
+        defaultProps.setProperty("transaction.min-amount", "0.01");
+        defaultProps.setProperty("transaction.max-amount", "1000000");
+
+        // Создание и запись конфигурационного файла
+        try (OutputStream outputStream = Files.newOutputStream(CONFIG_PATH)) {
+            defaultProps.store(outputStream, "Default configuration");
+        }
     }
 
-    private static void initializeStorage() {
-        String storagePath = properties.getProperty("app.storage.path", "storage");
+    @SneakyThrows
+    private static void initializeFileStructure() {
         // Инициализация структуры хранения
-        new File(storagePath + "/users").mkdirs();
-        new File(storagePath + "/transfers").mkdirs();
-        new File(storagePath + "/logs").mkdirs();
+        Files.createDirectories(STORAGE_PATH.resolve("config"));
+        Files.createDirectories(STORAGE_PATH.resolve("users"));
+        Files.createDirectories(STORAGE_PATH.resolve("transfers"));
+        Files.createDirectories(STORAGE_PATH.resolve("logs"));
     }
 
     public static String getProperty(String key) {
-        return properties.getProperty(key);
+        try {
+            String value = properties.getProperty(key);
+            logger.debug("Got property: {}={}", key, value);
+            return value;
+        } catch (Exception e) {
+            logger.error("Error getting property: {}", key, e);
+            return null;
+        }
     }
 }

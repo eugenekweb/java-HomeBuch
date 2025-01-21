@@ -12,11 +12,17 @@ import dev.micartera.presentation.service.SessionState;
 import dev.micartera.presentation.util.Color;
 import dev.micartera.presentation.util.ColorPrinter;
 import lombok.Data;
+import lombok.SneakyThrows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Console;
+import java.io.InputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -26,7 +32,6 @@ public class MenuManager {
     private static final Logger logger = LoggerFactory.getLogger(MenuManager.class);
     private final Map<String, Menu> menus;
     private Menu currentMenu;
-    private final Scanner scanner;
     private final InputValidator inputValidator;
     private final OutputFormatter formatter;
     private final SessionState sessionState;
@@ -45,7 +50,6 @@ public class MenuManager {
         WalletRepositoryImpl walletRepository = new WalletRepositoryImpl();
 
         this.sessionState = new SessionState(walletRepository, userRepository);
-        this.scanner = new Scanner(System.in);
         this.inputValidator = new InputValidator();
         this.formatter = new OutputFormatter();
         this.menus = new HashMap<>();
@@ -224,7 +228,7 @@ public class MenuManager {
 
     public void handleInput() {
         try {
-            String input = scanner.nextLine().trim();
+            String input = inputValidator.readString("");
 
             if (input.equalsIgnoreCase("exit")) {
                 System.out.println("До свидания!");
@@ -289,7 +293,7 @@ public class MenuManager {
                     (type == Category.CategoryType.INCOME ? "'ДОХОДЫ'" : "'РАСХОДЫ'")));
             System.out.println(formatter.formatPrompt("Создать новую категорию? (да/нет)"));
 
-            String answer = scanner.nextLine().trim().toLowerCase();
+            String answer = inputValidator.readString("").toLowerCase();
             if (answer.equals("да")) {
                 return createNewCategory(type);
             } else {
@@ -306,7 +310,7 @@ public class MenuManager {
             System.out.print(formatter.formatPrompt("\nВаш выбор: "));
 
             try {
-                int choice = Integer.parseInt(scanner.nextLine().trim());
+                int choice = Integer.parseInt(inputValidator.readString(""));
                 if (choice > 0 && choice <= categories.size()) {
                     return categories.get(choice - 1);
                 } else if (choice == categories.size() + 1) {
@@ -333,7 +337,7 @@ public class MenuManager {
             } catch (Exception e) {
                 System.out.println(formatter.formatError("Ошибка при создании категории: " + e.getMessage()));
                 System.out.println(formatter.formatPrompt("Попробовать снова? (да/нет)"));
-                if (!scanner.nextLine().trim().toLowerCase().equals("да")) {
+                if (!inputValidator.readString("").toLowerCase().equals("да")) {
                     throw new IllegalStateException("Операция отменена пользователем");
                 }
             }
@@ -355,7 +359,7 @@ public class MenuManager {
     private void handleLogin() {
         try {
             String login = inputValidator.readString("Введите логин: ");
-            String password = inputValidator.readMaskedPassword("Введите пароль: ");
+            String password = inputValidator.readPassword("Введите пароль: ");
 
             Optional<User> user = authenticationService.authenticate(login, password);
             if (user.isPresent()) {
@@ -375,10 +379,8 @@ public class MenuManager {
 
     private void handleRegistration() {
         try {
-            System.out.print(formatter.formatPrompt("Придумайте логин: "));
-            String login = scanner.nextLine().trim();
-            System.out.print(formatter.formatPrompt("Придумайте пароль: "));
-            String password = scanner.nextLine().trim();
+            String login = inputValidator.readString("Придумайте логин: ");
+            String password = inputValidator.readPassword("Придумайте пароль: ");
 
             User user = authenticationService.register(login, password);
             walletService.createWallet(user.getId()); // Создаем кошелек для нового пользователя
@@ -576,7 +578,8 @@ public class MenuManager {
 
     private void handleCurrentPeriodReport() {
         try {
-            int defaultPeriodMonths = Integer.parseInt(ApplicationConfig.getProperty("app.default-period.months"));
+            int defaultPeriodMonths
+                    = Integer.parseInt(ApplicationConfig.getProperty("app.default-period.months"));
             LocalDateTime endDate = LocalDateTime.now();
             LocalDateTime startDate = endDate.minusMonths(defaultPeriodMonths);
 
@@ -740,7 +743,6 @@ public class MenuManager {
             if (currentUser != null) {
                 sessionState.saveAndClose();
                 logger.info("Состояние сессии сохранено при аварийном завершении");
-                scanner.close();
             }
         } catch (Exception e) {
             logger.error("Ошибка при аварийном сохранении состояния", e);
@@ -771,23 +773,36 @@ class MenuOption {
 
 class InputValidator {
     private static final Logger logger = LoggerFactory.getLogger(InputValidator.class);
-    private final Scanner scanner = new Scanner(System.in);
+    private final Console console;
     private final ValidationService validationService = new ValidationService();
     private final OutputFormatter formatter = new OutputFormatter();
 
+    @SneakyThrows
+    public InputValidator() {
+        System.setProperty("console.encoding", "UTF-8");
+        PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(System.out, "UTF-8"), true);
+
+        console = System.console();
+        if (console == null) {
+            System.out.println("Консоль недоступна");
+        }
+    }
+
     public String readString(String prompt) {
         System.out.print(formatter.formatPrompt(prompt));
-        String input = scanner.nextLine().trim();
+        String input = console.readLine().trim();
         if (input.equals("\u001B") || input.equalsIgnoreCase("esc")) { // Escape или esc
             throw new CommandCancelledException("Команда отменена");
         }
         return input;
     }
 
-    public String readMaskedPassword(String prompt) {
-        System.out.print(prompt + Color.GRAY.getCode() + Color.BG_GRAY.getCode() + "pass_mask");
-        String password = scanner.nextLine().trim();
-        System.out.print(Color.RESET.getCode());
+    public String readPassword(String prompt) {
+        System.out.print(formatter.formatPrompt(prompt));
+        char[] passwd = console.readPassword();
+        String password = new String(passwd).trim();
+        java.util.Arrays.fill(passwd, ' ');
         return password;
     }
 
@@ -795,7 +810,7 @@ class InputValidator {
         while (true) {
             try {
                 System.out.print(formatter.formatPrompt(prompt));
-                BigDecimal amount = new BigDecimal(scanner.nextLine().trim());
+                BigDecimal amount = new BigDecimal(console.readLine().trim());
                 if (validationService.validateAmount(amount)) {
                     return amount;
                 }
@@ -811,7 +826,7 @@ class InputValidator {
         while (true) {
             try {
                 System.out.print(formatter.formatPrompt(prompt));
-                String date = scanner.nextLine().trim();
+                String date = console.readLine().trim();
                 return LocalDateTime.parse(date + " 00:00", dateFormatter);
             } catch (Exception e) {
                 logger.error("Ошибка при вводе даты", e);
@@ -862,7 +877,6 @@ class OutputFormatter {
     }
 
     public String formatDate(LocalDateTime date) {
-        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
         return date.format(dateFormatter);
     }
 
@@ -890,7 +904,6 @@ class OutputFormatter {
         sb.append(colorCode);
 
         // Форматируем дату
-        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
         sb.append(transaction.getCreated().format(dateFormatter))
                 .append(" | ");
 
